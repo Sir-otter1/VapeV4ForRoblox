@@ -123,4 +123,84 @@ run(function()
 		Tooltip = 'Automatically opens lucky crates, piston inspired!'
 	})
 end)
+
+run(function()
+	local OtterAura
+	
+	OtterAura = vape.Categories.Blatant:CreateModule({
+		Name = 'OtterAura',
+		Function = function(callback)
+			if callback then
+				local gameCamera = workspace.CurrentCamera
+				local Players = cloneref(game:GetService('Players'))
+				local localPlayer = Players.LocalPlayer
+				local mouse = localPlayer:GetMouse()
+				
+				local function getNearestTarget()
+					local nearest = nil
+					local nearestDistance = math.huge
+					
+					for _, player in ipairs(Players:GetPlayers()) do
+						if player ~= localPlayer and player.Character and player.Character:FindFirstChild('Humanoid') and player.Character:FindFirstChild('HumanoidRootPart') then
+							if player.Character.Humanoid.Health > 0 and player.Team ~= localPlayer.Team then
+								local distance = (player.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
+								if distance < (OtterAura.Options.AttackRange.Value * 5) and distance < nearestDistance then
+									nearestDistance = distance
+									nearest = player
+								end
+							end
+						end
+					end
+					
+					return nearest
+				end
+				
+				OtterAura:Clean(game:GetService('RunService').Heartbeat:Connect(function()
+					if not OtterAura.Enabled then return end
+					
+					local target = getNearestTarget()
+					if target and target.Character and target.Character:FindFirstChild('HumanoidRootPart') then
+						if OtterAura.Options.Mouse.Value and not mouse.Target then return end
+						
+						local tool = localPlayer.Character:FindFirstChildOfClass('Tool')
+						if tool and tool:FindFirstChild('Handle') then
+							local distance = (target.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
+							if distance <= (OtterAura.Options.AttackRange.Value * 5) then
+								tool:Activate()
+							end
+						end
+					end
+				end))
+			end
+		end,
+		Tooltip = 'Enhanced otter-powered combat system!\nAttacks players with intelligent targeting,\nsmooth rotations, and optimized performance.'
+	})
+	
+	OtterAura:CreateTargets({Players = true})
+	OtterAura:CreateTwoSlider({
+		Name = 'CPS',
+		Text = 'CPS',
+		Function = function(val) end,
+		Default = {12, 16},
+		Min = {1, 1},
+		Max = {20, 20}
+	})
+	OtterAura:CreateSlider({
+		Name = 'Attack Range',
+		Function = function(val) end,
+		Default = 4,
+		Min = 1,
+		Max = 6,
+		Decimal = 0.1
+	})
+	OtterAura:CreateToggle({Name = 'Require mouse down'})
+	OtterAura:CreateToggle({
+		Name = 'Smart Target',
+		Default = true
+	})
+	OtterAura:CreateToggle({
+		Name = 'Smooth Rotation',
+		Default = true
+	})
+end)
 	
