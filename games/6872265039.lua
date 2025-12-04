@@ -126,81 +126,293 @@ end)
 
 run(function()
 	local OtterAura
+	local Targets
+	local CPS
+	local SwingRange
+	local AttackRange
+	local AngleSlider
+	local Max
+	local Mouse
+	local Lunge
+	local BoxSwingColor
+	local BoxAttackColor
+	local ParticleTexture
+	local ParticleColor1
+	local ParticleColor2
+	local ParticleSize
+	local Face
+	local SmartTarget
+	local SmoothRotation
+	local Overlay = OverlapParams.new()
+	Overlay.FilterType = Enum.RaycastFilterType.Include
+	Overlay.IgnoreWater = true
+	local Particles, Boxes, AttackDelay = {}, {}, tick()
+	local lastRotation, rotationAlpha = CFrame.new(), 0
+	
+	local function getAttackData()
+		if Mouse.Enabled then
+			if not inputService:IsMouseButtonPressed(0) then return false end
+		end
+
+		local tool = lplr.Character:FindFirstChildOfClass('Tool')
+		return tool and tool:FindFirstChildWhichIsA('TouchTransmitter', true) or nil, tool
+	end
 	
 	OtterAura = vape.Categories.Blatant:CreateModule({
 		Name = 'OtterAura',
 		Function = function(callback)
 			if callback then
-				local gameCamera = workspace.CurrentCamera
-				local Players = cloneref(game:GetService('Players'))
-				local localPlayer = Players.LocalPlayer
-				local mouse = localPlayer:GetMouse()
-				
-				local function getNearestTarget()
-					local nearest = nil
-					local nearestDistance = math.huge
-					
-					for _, player in ipairs(Players:GetPlayers()) do
-						if player ~= localPlayer and player.Character and player.Character:FindFirstChild('Humanoid') and player.Character:FindFirstChild('HumanoidRootPart') then
-							if player.Character.Humanoid.Health > 0 and player.Team ~= localPlayer.Team then
-								local distance = (player.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
-								if distance < (OtterAura.Options.AttackRange.Value * 5) and distance < nearestDistance then
-									nearestDistance = distance
-									nearest = player
+				repeat
+					local interest, tool = getAttackData()
+					local attacked = {}
+					if interest then
+						local plrs = entitylib.AllPosition({
+							Range = SwingRange.Value,
+							Wallcheck = Targets.Walls.Enabled or nil,
+							Part = 'RootPart',
+							Players = Targets.Players.Enabled,
+							NPCs = Targets.NPCs.Enabled,
+							Limit = Max.Value * 2
+						})
+
+						if #plrs > 0 then
+							for _, plr in plrs do
+								if not attacked[plr.Player] and plr.Distance <= AttackRange.Value then
+									local canAttack = true
+									if Lunge.Enabled and tool and tool.Parent then
+										local hrp = plr.Character.HumanoidRootPart
+										local mag = (hrp.Position - tool.Parent.PrimaryPart.Position).Magnitude
+										if mag > 6.5 then canAttack = false end
+									end
+									if canAttack then
+										local look = (plr.Character.HumanoidRootPart.Position - workspace.CurrentCamera.CFrame.Position).unit
+										local ray = workspace:Raycast(workspace.CurrentCamera.CFrame.Position, look * AttackRange.Value, raycastparams)
+										if not ray or (ray.Instance:IsDescendantOf(plr.Character) and ray.Position:Distance(plr.Character.HumanoidRootPart.Position) < 4) then
+											if AngleSlider.Enabled then
+												local orgcf = workspace.CurrentCamera.CFrame
+												local cf = CFrame.lookAt(orgcf.Position, plr.Character.HumanoidRootPart.Position)
+												local targetcf = AngleSlider.Value == 0 and cf or orgcf:Lerp(cf, 1 - math.clamp((1 - AngleSlider.Value / 180) * (plr.Distance / AttackRange.Value), 0, 1))
+												if SmoothRotation.Enabled then
+													local alpha = math.clamp((tick() - lastRotation) / 0.15, 0, 1)
+													lastRotation = lastRotation:Lerp(targetcf, alpha)
+													workspace.CurrentCamera.CFrame = lastRotation
+												else
+													workspace.CurrentCamera.CFrame = targetcf
+												end
+											end
+											attacked[plr.Player] = true
+											task.wait()
+											interest:FireServer({})
+										end
+									end
 								end
 							end
 						end
 					end
-					
-					return nearest
-				end
-				
-				OtterAura:Clean(game:GetService('RunService').Heartbeat:Connect(function()
-					if not OtterAura.Enabled then return end
-					
-					local target = getNearestTarget()
-					if target and target.Character and target.Character:FindFirstChild('HumanoidRootPart') then
-						if OtterAura.Options.Mouse.Value and not mouse.Target then return end
-						
-						local tool = localPlayer.Character:FindFirstChildOfClass('Tool')
-						if tool and tool:FindFirstChild('Handle') then
-							local distance = (target.Character.HumanoidRootPart.Position - localPlayer.Character.HumanoidRootPart.Position).Magnitude
-							if distance <= (OtterAura.Options.AttackRange.Value * 5) then
-								tool:Activate()
-							end
-						end
-					end
-				end))
+					task.wait(1 / CPS.Value[2])
+				until not OtterAura.Enabled
 			end
 		end,
 		Tooltip = 'Enhanced otter-powered combat system!\nAttacks players with intelligent targeting,\nsmooth rotations, and optimized performance.'
 	})
 	
-	OtterAura:CreateTargets({Players = true})
-	OtterAura:CreateTwoSlider({
+	Targets = OtterAura:CreateTargets({Players = true, NPCs = false, Walls = false})
+	CPS = OtterAura:CreateTwoSlider({
 		Name = 'CPS',
-		Text = 'CPS',
+		Text = {'Min CPS', 'Max CPS'},
 		Function = function(val) end,
 		Default = {12, 16},
 		Min = {1, 1},
 		Max = {20, 20}
 	})
-	OtterAura:CreateSlider({
-		Name = 'Attack Range',
+	SwingRange = OtterAura:CreateSlider({
+		Name = 'Swing Range',
 		Function = function(val) end,
-		Default = 4,
+		Default = 4.5,
 		Min = 1,
-		Max = 6,
+		Max = 7,
 		Decimal = 0.1
 	})
-	OtterAura:CreateToggle({Name = 'Require mouse down'})
-	OtterAura:CreateToggle({
+	AttackRange = OtterAura:CreateSlider({
+		Name = 'Attack Range',
+		Function = function(val) end,
+		Default = 3.5,
+		Min = 1,
+		Max = 35,
+		Decimal = 0.1
+	})
+	AngleSlider = OtterAura:CreateSlider({
+		Name = 'Max Angle',
+		Function = function(val) end,
+		Default = 180,
+		Min = 0,
+		Max = 180,
+		Decimal = 1
+	})
+	Max = OtterAura:CreateSlider({
+		Name = 'Max Targets',
+		Function = function(val) end,
+		Default = 1,
+		Min = 1,
+		Max = 3,
+		Decimal = 0
+	})
+	Mouse = OtterAura:CreateToggle({Name = 'Require mouse down'})
+	Lunge = OtterAura:CreateToggle({Name = 'Sword lunge only'})
+	SmartTarget = OtterAura:CreateToggle({
 		Name = 'Smart Target',
 		Default = true
 	})
-	OtterAura:CreateToggle({
+	SmoothRotation = OtterAura:CreateToggle({
 		Name = 'Smooth Rotation',
 		Default = true
+	})
+	OtterAura:CreateToggle({
+		Name = 'Visuals',
+		Default = true,
+		Function = function(callback)
+			if callback then
+				OtterAura:Clean(entitylib.Events.EntityAdded:Connect(function(plr)
+					local box = Instance.new('BoxHandleAdornment')
+					box.Size = Vector3.new(4, 4, 4)
+					box.Color3 = BoxSwingColor.Value
+					box.Transparency = 0.7
+					box.AlwaysOnTop = true
+					box.ZIndex = 10
+					local con
+					con = game:GetService('RunService').Heartbeat:Connect(function()
+						if plr.Character and plr.Character:FindFirstChild('HumanoidRootPart') then
+							box.Adornee = plr.Character.HumanoidRootPart
+							box.Parent = OtterAura.Enabled and gameCamera or nil
+						else
+							box.Adornee = nil
+						end
+					end)
+					OtterAura:Clean(con)
+					Particles[plr.Player] = box
+				end))
+			else
+				for _, v in pairs(Particles) do
+					v:Destroy()
+				end
+				table.clear(Particles)
+			end
+		end
+	})
+	BoxSwingColor = OtterAura:CreateColorSlider({
+		Name = 'Swing Color',
+		Function = function(val) end,
+		Default = Color3.new(1, 0, 0)
+	})
+	BoxAttackColor = OtterAura:CreateColorSlider({
+		Name = 'Attack Color',
+		Function = function(val) end,
+		Default = Color3.new(1, 1, 0)
+	})
+	OtterAura:CreateToggle({
+		Name = 'Particles',
+		Default = true,
+		Function = function(callback)
+			if callback then
+				OtterAura:Clean(game:GetService('RunService').Heartbeat:Connect(function()
+					if not OtterAura.Enabled then return end
+					local plrs = entitylib.AllPosition({
+						Range = SwingRange.Value,
+						Part = 'RootPart',
+						Players = Targets.Players.Enabled,
+						NPCs = Targets.NPCs.Enabled,
+						Limit = Max.Value * 2
+					})
+					for _, plr in plrs do
+						if plr.Distance <= AttackRange.Value and not Particles[plr.Player] then
+							local particle = Instance.new('ParticleEmitter')
+							particle.Texture = ParticleTexture.Value
+							particle.Color = ColorSequence.new(ParticleColor1.Value, ParticleColor2.Value)
+							particle.Size = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, ParticleSize.Value),
+								NumberSequenceKeypoint.new(1, 0)
+							})
+							particle.Transparency = NumberSequence.new({
+								NumberSequenceKeypoint.new(0, 0.5),
+								NumberSequenceKeypoint.new(1, 1)
+							})
+							particle.Lifetime = NumberRange.new(0.5, 1)
+							particle.Rate = 10
+							particle.Speed = NumberRange.new(-5, -2)
+							particle.SpreadAngle = Vector2.new(30, 30)
+							particle.Acceleration = Vector3.new(0, 10, 0)
+							particle.Enabled = true
+							particle.Parent = workspace.CurrentCamera
+							local con
+							con = game:GetService('RunService').Heartbeat:Connect(function()
+								if plr.Character and plr.Character:FindFirstChild('HumanoidRootPart') then
+									particle.Position = plr.Character.HumanoidRootPart.Position
+								else
+									particle.Enabled = false
+								end
+							end)
+							OtterAura:Clean(con)
+							Particles[plr.Player] = particle
+						end
+					end
+				end))
+			else
+				for _, v in pairs(Particles) do
+					v:Destroy()
+				end
+				table.clear(Particles)
+			end
+		end
+	})
+	ParticleTexture = OtterAura:CreateTextBox({
+		Name = 'Particle Texture',
+		Function = function(val) end,
+		Default = 'rbxassetid://13371830'
+	})
+	ParticleColor1 = OtterAura:CreateColorSlider({
+		Name = 'Particle Color 1',
+		Function = function(val) end,
+		Default = Color3.new(1, 0, 0)
+	})
+	ParticleColor2 = OtterAura:CreateColorSlider({
+		Name = 'Particle Color 2',
+		Function = function(val) end,
+		Default = Color3.new(1, 1, 0)
+	})
+	ParticleSize = OtterAura:CreateSlider({
+		Name = 'Particle Size',
+		Function = function(val) end,
+		Default = 0.5,
+		Min = 0.1,
+		Max = 2,
+		Decimal = 0.1
+	})
+	Face = OtterAura:CreateToggle({
+		Name = 'Face Target',
+		Function = function(callback)
+			if callback then
+				OtterAura:Clean(game:GetService('RunService').Heartbeat:Connect(function()
+					if not OtterAura.Enabled then return end
+					local plrs = entitylib.AllPosition({
+						Range = AttackRange.Value,
+						Part = 'RootPart',
+						Players = Targets.Players.Enabled,
+						NPCs = Targets.NPCs.Enabled,
+						Limit = 1
+					})
+					if #plrs > 0 then
+						local plr = plrs[1]
+						local target = plr.Character.HumanoidRootPart.Position
+						local look = (target - workspace.CurrentCamera.CFrame.Position).unit
+						local ray = workspace:Raycast(workspace.CurrentCamera.CFrame.Position, look * AttackRange.Value, raycastparams)
+						if not ray or (ray.Instance:IsDescendantOf(plr.Character) and ray.Position:Distance(plr.Character.HumanoidRootPart.Position) < 4) then
+							local cf = CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, target)
+							workspace.CurrentCamera.CFrame = cf
+						end
+					end
+				end))
+			end
+		end
 	})
 end)
 	
