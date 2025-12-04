@@ -44,10 +44,10 @@ run(function()
 		end
 	})
 
-	local kills = sessioninfo:AddItem('Kills')
-	local beds = sessioninfo:AddItem('Beds')
-	local wins = sessioninfo:AddItem('Wins')
-	local games = sessioninfo:AddItem('Games')
+	local kills = sessioninfo and sessioninfo:AddItem('Kills')
+	local beds = sessioninfo and sessioninfo:AddItem('Beds')
+	local wins = sessioninfo and sessioninfo:AddItem('Wins')
+	local games = sessioninfo and sessioninfo:AddItem('Games')
 
 	vape:Clean(function()
 		table.clear(bedwars)
