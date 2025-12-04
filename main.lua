@@ -97,10 +97,10 @@ vape = loadstring(downloadFile('newvape/guis/'..gui..'.lua'), 'gui')()
 shared.vape = vape
 
 if not shared.VapeIndependent then
-	loadstring(downloadFile('newvape/games/universal.lua'), 'universal')()
 	if isfile('newvape/games/'..game.PlaceId..'.lua') then
 		loadstring(readfile('newvape/games/'..game.PlaceId..'.lua'), tostring(game.PlaceId))(...)
 	else
+		loadstring(downloadFile('newvape/games/universal.lua'), 'universal')()
 		if not shared.VapeDeveloper then
 			local suc, res = pcall(function()
 				return game:HttpGet('https://raw.githubusercontent.com/hijsys/VapeV4ForRoblox/'..readfile('newvape/profiles/commit.txt')..'/games/'..game.PlaceId..'.lua', true)
